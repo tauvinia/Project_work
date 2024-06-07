@@ -1,0 +1,211 @@
+---
+title: "Project"
+format: html
+editor: visual
+---
+# Packages
+```{r}
+## Default repository
+local({r <- getOption("repos")
+r["CRAN"] <- "http://cran.r-project.org" 
+options(repos=r)
+})
+
+## Define function check_pkg to tests if package is already installed and hence only needs loading
+check_pkg <- function(x)
+{
+  if (!require(x,character.only = TRUE))
+  {
+    install.packages(x,dep=TRUE)
+    if(!require(x,character.only = TRUE)) stop("Package not found")
+  }
+}
+
+## Call check_pkg()
+check_pkg("pacman")
+check_pkg("dplyr")
+check_pkg("ggplot2")
+check_pkg("readr")
+check_pkg("tidyr")
+check_pkg("sf")
+check_pkg("terra")
+check_pkg("tmap")
+check_pkg("zoo")
+check_pkg("units")
+check_pkg("plotly")
+check_pkg("patchwork")
+check_pkg("gitcreds")
+check_pkg("lubridate")
+check_pkg("readr")
+check_pkg("forcats")
+check_pkg("osmdata")
+check_pkg("OpenStreetMap")
+check_pkg("ggmap")
+check_pkg("sfnetworks")
+```
+
+# Read data
+Data is in EPSG:31467. I changed it to EPSG:4326.
+```{r}
+# Read data
+data <- read_delim("data/combined_data.csv", ",") |>
+  st_as_sf(coords = c("latitude", "longitude"), crs = 31467, remove = FALSE) |>
+  st_transform(4326)
+  
+
+data_1 <- read_delim("data/combined_data_1.csv", ",") |>
+  st_as_sf(coords = c("latitude", "longitude"), crs = 31467, remove = FALSE) |>
+  st_transform(4326)
+```
+
+# OSM
+```{r}
+# Explore features
+available_features()
+available_tags(feature = "highway")
+
+
+# Extract bounding box for Karlsruhe
+karlsruhe_bb <- getbb("Karlsruhe")
+```
+
+## Create Street Network
+```{r}
+# Extract streets
+highway <- getbb(place_name = "Karlsruhe") %>%
+  opq() %>%
+  add_osm_feature(key = "highway") %>%
+  osmdata_sf()
+
+streets <- highway$osm_lines
+names(streets)
+
+
+# Plot with ggplot
+ggplot() +
+  geom_sf(data = streets,
+          inherit.aes = FALSE,
+          color = "black",
+          size = 0.2)
+
+
+# Convert object to sfnetwork object
+# Source: https://geospatial-community.netlify.app/post/2022-03-31-spatial-networks/
+street_net <- as_sfnetwork(streets, directed = FALSE) # set as undirected
+
+street_net
+```
+
+```{r fig.width=50, fig.height=40}
+plot(street_net)
+
+ggplot() +
+  geom_sf(data=street_net %>% activate(edges) %>% st_as_sf(), aes(color=highway), size=2) + 
+  geom_sf(data=street_net %>% activate(nodes) %>% st_as_sf())
+```
+
+## Start and End
+Start:
+Kriegsstraße 183, 76135 Karlsruhe, Deutschland
+49.00535930123405, 8.36964749052686
+
+End:
+Klosterweg 28, 76131 Karlsruhe, Deutschland
+49.020260402061204, 8.4230360394263
+
+```{r}
+# Store start point
+start_point <- st_point(c(8.36964749052686, 49.00535930123405)) %>% 
+  st_sfc(crs = 4326)
+
+# Store end point
+end_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>% 
+  st_sfc(crs = 4326)
+```
+
+Find nearest vertices
+```{r}
+# Coordinates of all nodes in the network
+vertices_sf <- street_net %>%
+  activate(nodes) %>%
+  st_as_sf()
+
+# Find the id of the vertex closest to start point
+start_vertex <- st_nearest_feature(start_point, vertices_sf)
+
+# Find the id of the vertex closest to end point
+end_vertex <- st_nearest_feature(end_point, vertices_sf)
+
+# Print
+cat("Start Vertex:", start_vertex, "\n")
+cat("End Vertex:", end_vertex)
+```
+
+# Mapmatching GPS points to the road network
+https://computationalmovementanalysis.github.io/FS24/Appendix/Appendix.html#mapmatching-gps-points-to-the-road-network
+
+```{r}
+# Create union of the roads first
+streets <- st_union(streets)
+
+# Get nearest point for each GPS location
+nearest <- st_nearest_points(data, streets)
+```
+
+
+Example:
+```{r}
+library(sf)
+library(tmap)
+
+# Get a sample road dataset
+HighWays <- read_sf(system.file("sqlite/test3.sqlite",package="sf"), "HighWays")[6, ] 
+
+# since we want to find the closest location on the road over ALL roads
+# we need to create a union of the roads first.
+HighWays <- st_union(HighWays)
+
+# Let's simulate 1000 GPS locations within 3km of the highway
+gps_locations <- HighWays |> st_buffer(3000) |> st_sample(100)
+
+# Now we can get the nearset point for each GPS location
+nearest <- st_nearest_points(gps_locations, HighWays)
+
+# The output is a line for each point (see plot below)
+# Now we need convert the output from LINE to POINT. 
+# This doubles the number of features
+near_p <- st_cast(nearest, "POINT")
+
+# now we subset the points. Uneven numbers are the original
+# points, even numbers are the new, mapmatched points.
+near_from <- near_p[c(TRUE, FALSE)]
+near_to <- near_p[c(FALSE,TRUE)]
+```
+
+
+# Environment
+```{r}
+# Extract streets
+forestry <- getbb(place_name = "Karlsruhe") %>%
+  opq() %>%
+  add_osm_feature(key = "forestry") %>%
+  osmdata_sf()
+
+
+# Create the plot object, using the osm_lines element
+ggplot() +
+  geom_sf(data = forestry$osm_points,
+          inherit.aes = FALSE,
+          color = "black",
+          size = 0.2)
+
+tmap_mode("view")
+
+tm_shape(forestry$osm_lines) +
+  tm_po(lwd = 0.6, col = "blue")
+
+```
+
+
+
+

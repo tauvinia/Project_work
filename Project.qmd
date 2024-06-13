@@ -127,10 +127,83 @@ end_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>%
 
 # Extract route
 ```{r}
+## Start point
+# Buffer
+start_buffer <- st_buffer(start_point, dist = 10)
+
+# Point in buffer
+points_start_buffer <- st_intersection(data, start_buffer)
+
+###
+# Only one point per day
+points_start_buffer <- points_start_buffer %>%
+  mutate(distance = st_distance(., start_point))
+
+# Find the closest point per day
+route_start_points <- points_start_buffer %>%
+  group_by(date) %>%
+  slice(which.min(distance)) %>%
+  ungroup()
+###
+
+# Plot
+ggplot() +
+  geom_sf(data = start_buffer, color = "black", fill = "lightblue") +
+  geom_sf(data = start_point, color = "darkblue") +
+  geom_sf(data = points_start_buffer, color = "darkgrey") +
+  geom_sf(data = route_start_points, color = "red")
+```
+
+
+```{r}
+## End point
+# Buffer
+end_buffer <- st_buffer(end_point, dist = 100)
+
+# Point in buffer
+points_end_buffer <- st_intersection(data, end_buffer)
+
+##"
+# Only one point per day
+points_end_buffer <- points_end_buffer %>%
+  mutate(distance = st_distance(., end_point))
+
+# Find the closest point per day
+route_end_points <- points_end_buffer %>%
+  group_by(date) %>%
+  slice(which.min(distance)) %>%
+  ungroup()
+###
+
+# Plot
+ggplot() +
+  geom_sf(data = end_buffer, color = "black", fill = "lightblue") +
+  geom_sf(data = end_point, color = "darkblue") +
+  geom_sf(data = points_end_buffer, color = "darkgrey") +
+  geom_sf(data = route_end_points, color = "red")
+```
+
+Group by time
+```{r}
+
+
+```
+
+
+
+```{r}
 # Casting points to lines
 data_line <- data |> 
   # dissolve to a MULTIPOINT
   summarise(do_union = FALSE) |> 
+  st_cast("LINESTRING")
+
+
+data_points <- st_as_sf(data.frame(geometry = c(start_point, end_point)))
+
+# Summarize to create a LINESTRING from start_point to end_point
+data_line <- data_points %>%
+  summarise(geometry = st_union(geometry)) %>%
   st_cast("LINESTRING")
 ```
 

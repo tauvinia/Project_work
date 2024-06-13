@@ -58,33 +58,53 @@ data_1 <- read_delim("data/combined_data_1.csv", ",") |>
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, remove = FALSE)
 ```
 
+## Separate timestamp into date and time
 ```{r}
-filter <- filter(data, latitude >= 49.00535930123405, longitude >= 8.36964749052686)
+# Convert the timestamp to POSIXct
+data$timestamp <- ymd_hms(data$timestamp)
 
-filter2 <- filter(data, latitude < 49.020260402061204, longitude < 8.4230360394263)
+# Extract date component
+data$date <- as.Date(data$timestamp)
+
+# Extract time component
+data$time <- format(data$timestamp, format = "%H:%M:%S")
+
+# View the modified dataset
+head(data)
 ```
-
-
 
 ## Select data within Karlsruhe
 ```{r}
-# Extract boundary of Karlsruhe
-boundary <- getbb(place_name = "Karlsruhe") %>%
-  opq() %>%
-  add_osm_feature(key = "boundary",
-                  value = "administrative") %>%
-  osmdata_sf() %>%
-  .$osm_multipolygons %>%
-  filter(name == "Karlsruhe")
+# # Extract boundary of Karlsruhe
+# boundary <- getbb(place_name = "Karlsruhe") %>%
+#   opq() %>%
+#   add_osm_feature(key = "boundary",
+#                   value = "administrative") %>%
+#   osmdata_sf() %>%
+#   .$osm_multipolygons %>%
+#   filter(name == "Karlsruhe")
+# 
+# # Select data that is within this boundary
+# data <- st_intersection(data, boundary)
+# 
+# # Plot
+# ggplot() +
+#   geom_sf(data = boundary) +
+#   geom_sf(data = data, color = "green")
+# 
+# # Save
+# st_write(boundary, "data/boundary.gpkg")
+# st_write(data, "data/small_data.gpkg")
+```
 
-# Select data that is within this boundary
-filter2 <- st_intersection(filter2, boundary)
+Delete after we are done
+```{r}
+boundary <- st_read("data/boundary.gpkg")
+data <- st_read("data/small_data.gpkg")
 
-# Plot
 ggplot() +
   geom_sf(data = boundary) +
-  geom_sf(data = data, color = "green") +
-  geom_sf(data = filter2, color = "blue")
+  geom_sf(data = data, color = "green")
 ```
 
 ## Start and end point of the route
@@ -105,7 +125,17 @@ end_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>%
 ```
 
 
-# OSM
+# Extract route
+```{r}
+# Casting points to lines
+data_line <- data |> 
+  # dissolve to a MULTIPOINT
+  summarise(do_union = FALSE) |> 
+  st_cast("LINESTRING")
+```
+
+
+# Environmental Features OSM
 ```{r}
 # Explore features
 available_features()
@@ -156,15 +186,29 @@ cat("End Vertex:", end_vertex)
 ```
 
 ## Trees
+shift+ctrl+c to add and remove #
 ```{r}
-# Extract trees
-trees <- getbb(place_name = "Karlsruhe") %>%
-  opq() %>%
-  add_osm_feature(key = "natural",
-                  value = "tree") %>%
-  osmdata_sf() %>%
-  .$osm_points %>%
-  st_intersection(boundary)
+# # Extract trees
+# trees <- getbb(place_name = "Karlsruhe") %>%
+#   opq() %>%
+#   add_osm_feature(key = "natural",
+#                   value = "tree") %>%
+#   osmdata_sf() %>%
+#   .$osm_points %>%
+#   st_intersection(boundary)
+# 
+# # Plot
+# ggplot() +
+#   geom_sf(data = boundary, color = "black", fill = "lightblue") +
+#   geom_sf(data = trees, color = "darkgreen") +
+#   theme_minimal()
+# 
+# st_write(trees, "data/trees.gpkg")
+```
+
+Delete when we are done
+```{r}
+trees <- st_read("data/trees.gpkg")
 
 # Plot
 ggplot() +
@@ -172,6 +216,7 @@ ggplot() +
   geom_sf(data = trees, color = "darkgreen") +
   theme_minimal()
 ```
+
 
 ## Parks
 ```{r}
@@ -190,6 +235,10 @@ ggplot() +
   geom_sf(data = parks, color = "darkgreen", fill = "darkgreen") +
   theme_minimal()
 ```
+
+
+
+
 
 # Mapmatching GPS points to the road network
 https://computationalmovementanalysis.github.io/FS24/Appendix/Appendix.html#mapmatching-gps-points-to-the-road-network
@@ -238,23 +287,3 @@ near_p <- st_cast(nearest, "POINT")
 near_from <- near_p[c(TRUE, FALSE)]
 near_to <- near_p[c(FALSE,TRUE)]
 ```
-
-
-# Environment
-```{r}
-available_features()
-```
-
-```{r}
-available_tags("surface")
-```
-
-
-
-
-
-
-
-
-
-

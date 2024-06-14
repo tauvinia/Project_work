@@ -3,7 +3,9 @@ title: "Project"
 format: html
 editor: visual
 ---
+
 # Packages
+
 ```{r}
 ## Default repository
 local({r <- getOption("repos")
@@ -46,7 +48,9 @@ check_pkg("sfnetworks")
 ```
 
 # Trajectory data
+
 ## Read data
+
 ```{r}
 ## Read data 
 # Small dataset
@@ -59,6 +63,7 @@ data_1 <- read_delim("data/combined_data_1.csv", ",") |>
 ```
 
 ## Separate timestamp into date and time
+
 ```{r}
 # Convert the timestamp to POSIXct
 data$timestamp <- ymd_hms(data$timestamp)
@@ -74,7 +79,8 @@ head(data)
 ```
 
 ## Select data within Karlsruhe
-```{r}
+
+```{# {r}
 # # Extract boundary of Karlsruhe
 # boundary <- getbb(place_name = "Karlsruhe") %>%
 #   opq() %>%
@@ -98,6 +104,7 @@ head(data)
 ```
 
 Delete after we are done
+
 ```{r}
 boundary <- st_read("data/boundary.gpkg")
 data <- st_read("data/small_data.gpkg")
@@ -108,11 +115,10 @@ ggplot() +
 ```
 
 ## Start and end point of the route
-Start point:
-Kriegsstraße 183, 76135 Karlsruhe, Deutschland
 
-End point:
-Klosterweg 28, 76131 Karlsruhe, Deutschland
+Start point: Kriegsstraße 183, 76135 Karlsruhe, Deutschland
+
+End point: Klosterweg 28, 76131 Karlsruhe, Deutschland
 
 ```{r}
 # Store start point
@@ -124,8 +130,8 @@ end_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>%
   st_sfc(crs = 4326)
 ```
 
-
 # Extract route
+
 ```{r}
 ## Start point
 # Buffer
@@ -153,7 +159,6 @@ ggplot() +
   geom_sf(data = points_start_buffer, color = "darkgrey") +
   geom_sf(data = route_start_points, color = "red")
 ```
-
 
 ```{r}
 ## End point
@@ -184,12 +189,11 @@ ggplot() +
 ```
 
 Group by time
+
 ```{r}
 
 
 ```
-
-
 
 ```{r}
 # Casting points to lines
@@ -207,8 +211,21 @@ data_line <- data_points %>%
   st_cast("LINESTRING")
 ```
 
+Separating the routes
+
+```{r}
+# Calculate time differences between consecutive points
+bike_data <- data %>%
+  arrange(timestamp) %>%  # Ensure data is sorted by time
+  mutate(time_diff = c(NA, diff(timestamp)))
+
+```
+
+```{r}
+```
 
 # Environmental Features OSM
+
 ```{r}
 # Explore features
 available_features()
@@ -217,6 +234,7 @@ available_tags(feature = "highway")
 ```
 
 ## Create Street Network
+
 ```{r fig.width=50, fig.height=40}
 # Extract highways
 highway <- getbb(place_name = "Karlsruhe") %>%
@@ -241,6 +259,7 @@ ggplot() +
 ```
 
 Find nearest vertices of start and end point of the route
+
 ```{r}
 # Coordinates of all nodes in the network
 vertices_sf <- street_net %>%
@@ -259,7 +278,9 @@ cat("End Vertex:", end_vertex)
 ```
 
 ## Trees
-shift+ctrl+c to add and remove #
+
+shift+ctrl+c to add and remove \#
+
 ```{r}
 # # Extract trees
 # trees <- getbb(place_name = "Karlsruhe") %>%
@@ -280,6 +301,7 @@ shift+ctrl+c to add and remove #
 ```
 
 Delete when we are done
+
 ```{r}
 trees <- st_read("data/trees.gpkg")
 
@@ -290,8 +312,8 @@ ggplot() +
   theme_minimal()
 ```
 
-
 ## Parks
+
 ```{r}
 # Extract green spaces
 parks <- getbb(place_name = "Karlsruhe") %>%
@@ -309,11 +331,8 @@ ggplot() +
   theme_minimal()
 ```
 
-
-
-
-
 # Mapmatching GPS points to the road network
+
 https://computationalmovementanalysis.github.io/FS24/Appendix/Appendix.html#mapmatching-gps-points-to-the-road-network
 
 ```{r}
@@ -331,8 +350,8 @@ ggplot() +
   geom_sf(data = nearest)
 ```
 
-
 Example:
+
 ```{r}
 library(sf)
 library(tmap)

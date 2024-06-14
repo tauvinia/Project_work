@@ -157,8 +157,7 @@ end_buffer <- st_buffer(end_point, dist = 100)
 # Point in buffer
 points_end_buffer <- st_intersection(bike_data, end_buffer)
 
-##"
-# Only one point per day (??)
+# Calculate the distance of each point from the start point
 points_end_buffer <- points_end_buffer %>%
   mutate(distance = st_distance(., end_point))
 
@@ -169,7 +168,7 @@ points_end_buffer <- points_end_buffer %>%
 #   ungroup()
 # ###
 
-# Find the closest point per day
+# Find the closest point per drive_id
 route_end_points <- points_end_buffer %>%
   group_by(drive_id) %>%
   slice(which.min(distance)) %>%

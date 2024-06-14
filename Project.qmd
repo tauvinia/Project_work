@@ -80,28 +80,7 @@ head(data)
 
 ## Select data within Karlsruhe
 
-```{# {r}
-# # Extract boundary of Karlsruhe
-# boundary <- getbb(place_name = "Karlsruhe") %>%
-#   opq() %>%
-#   add_osm_feature(key = "boundary",
-#                   value = "administrative") %>%
-#   osmdata_sf() %>%
-#   .$osm_multipolygons %>%
-#   filter(name == "Karlsruhe")
-# 
-# # Select data that is within this boundary
-# data <- st_intersection(data, boundary)
-# 
-# # Plot
-# ggplot() +
-#   geom_sf(data = boundary) +
-#   geom_sf(data = data, color = "green")
-# 
-# # Save
-# st_write(boundary, "data/boundary.gpkg")
-# st_write(data, "data/small_data.gpkg")
-```
+`{# {r} # # Extract boundary of Karlsruhe # boundary <- getbb(place_name = "Karlsruhe") %>% #   opq() %>% #   add_osm_feature(key = "boundary", #                   value = "administrative") %>% #   osmdata_sf() %>% #   .$osm_multipolygons %>% #   filter(name == "Karlsruhe") #  # # Select data that is within this boundary # data <- st_intersection(data, boundary) #  # # Plot # ggplot() + #   geom_sf(data = boundary) + #   geom_sf(data = data, color = "green") #  # # Save # st_write(boundary, "data/boundary.gpkg") # st_write(data, "data/small_data.gpkg")`
 
 Delete after we are done
 
@@ -138,19 +117,29 @@ end_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>%
 start_buffer <- st_buffer(start_point, dist = 10)
 
 # Point in buffer
-points_start_buffer <- st_intersection(data, start_buffer)
+points_start_buffer <- st_intersection(bike_data, start_buffer)
 
+# ##
+# # Only one point per day
+# points_start_buffer <- points_start_buffer %>%
+#   mutate(distance = st_distance(., start_point))
+# 
+# # Find the closest point per day
+# route_start_points <- points_start_buffer %>%
+#   group_by(date) %>%
+#   slice(which.min(distance)) %>%
+#   ungroup()
 ###
-# Only one point per day
+
+# Calculate the distance of each point from the start point
 points_start_buffer <- points_start_buffer %>%
   mutate(distance = st_distance(., start_point))
 
-# Find the closest point per day
+# Find the closest point per drive_id
 route_start_points <- points_start_buffer %>%
-  group_by(date) %>%
+  group_by(drive_id) %>%
   slice(which.min(distance)) %>%
   ungroup()
-###
 
 # Plot
 ggplot() +
@@ -166,16 +155,23 @@ ggplot() +
 end_buffer <- st_buffer(end_point, dist = 100)
 
 # Point in buffer
-points_end_buffer <- st_intersection(data, end_buffer)
+points_end_buffer <- st_intersection(bike_data, end_buffer)
 
 ##"
-# Only one point per day
+# Only one point per day (??)
 points_end_buffer <- points_end_buffer %>%
   mutate(distance = st_distance(., end_point))
 
+# # Find the closest point per day
+# route_end_points <- points_end_buffer %>%
+#   group_by(date) %>%
+#   slice(which.min(distance)) %>%
+#   ungroup()
+# ###
+
 # Find the closest point per day
 route_end_points <- points_end_buffer %>%
-  group_by(date) %>%
+  group_by(drive_id) %>%
   slice(which.min(distance)) %>%
   ungroup()
 ###
@@ -214,11 +210,21 @@ data_line <- data_points %>%
 Separating the routes
 
 ```{r}
-# Calculate time differences between consecutive points
+# Calculate time differences between consecutive points in seconds
 bike_data <- data %>%
   arrange(timestamp) %>%  # Ensure data is sorted by time
   mutate(time_diff = c(NA, diff(timestamp)))
 
+# Identify where the time difference exceeds 300 seconds (5 minutes)
+bike_data <- bike_data %>%
+  mutate(new_drive = ifelse(is.na(time_diff) | time_diff > 300, 1, 0))
+
+# Assign drive IDs
+bike_data <- bike_data %>%
+  mutate(drive_id = cumsum(new_drive))
+
+# View the resulting data
+print(bike_data)
 ```
 
 ```{r}

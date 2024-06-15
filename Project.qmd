@@ -101,94 +101,99 @@ End point: Klosterweg 28, 76131 Karlsruhe, Deutschland
 
 ```{r}
 # Store start point
-start_point <- st_point(c(8.36964749052686, 49.00535930123405)) %>% 
+home_point <- st_point(c(8.36964749052686, 49.00535930123405)) %>% 
   st_sfc(crs = 4326)
 
 # Store end point
-end_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>% 
+hadiko_point <- st_point(c(8.4230360394263, 49.020260402061204)) %>% 
   st_sfc(crs = 4326)
 ```
 
 # Extract route
 
+Separate the drives
+
 ```{r}
-## Start point
-# Buffer
-start_buffer <- st_buffer(start_point, dist = 10)
+# Calculate time differences between consecutive points in seconds
+data <- data %>%
+  arrange(timestamp) %>%  # Ensure data is sorted by time
+  mutate(time_diff = c(NA, diff(timestamp)))
 
-# Point in buffer
-points_start_buffer <- st_intersection(bike_data, start_buffer)
+# Identify where the time difference exceeds 300 seconds (5 minutes)
+data <- data %>%
+  mutate(new_drive = ifelse(is.na(time_diff) | time_diff > 300, 1, 0))
 
-# ##
-# # Only one point per day
-# points_start_buffer <- points_start_buffer %>%
-#   mutate(distance = st_distance(., start_point))
-# 
-# # Find the closest point per day
-# route_start_points <- points_start_buffer %>%
-#   group_by(date) %>%
-#   slice(which.min(distance)) %>%
-#   ungroup()
-###
+# Assign drive IDs
+data <- data %>%
+  mutate(drive_id = cumsum(new_drive))
 
-# Calculate the distance of each point from the start point
-points_start_buffer <- points_start_buffer %>%
-  mutate(distance = st_distance(., start_point))
+# View the resulting data
+print(data)
+```
 
-# Find the closest point per drive_id
-route_start_points <- points_start_buffer %>%
-  group_by(drive_id) %>%
-  slice(which.min(distance)) %>%
-  ungroup()
+Filter the drives that happened between "home" and "hadiko", separate them into datasets with ways "home to hadiko" and "hadiko to home", visualize.
+```{r}
+filter_drives <- function(start_point, start_distance, end_point, end_distance, data) {
+   
+    # Create the buffer around the start/end point
+    start_buffer <- st_buffer(start_point, dist = start_distance)
+    end_buffer <- st_buffer(end_point, dist = end_distance)
+    
+    # Check if the first point of each drive is within the start buffer
+    first_points_within_start_buffer <- data %>%
+      group_by(drive_id) %>%
+      slice(1) %>%
+      filter(st_within(geom, start_buffer, sparse = FALSE)) %>%
+      pull(drive_id)
+    
+    # Check if the last point of each drive is within the end buffer
+    last_points_within_end_buffer <- data %>%
+      group_by(drive_id) %>%
+      slice(n()) %>%
+      filter(st_within(geom, end_buffer, sparse = FALSE)) %>%
+      pull(drive_id)
+    
+    # Filter the original data to keep only rows with drive_id meeting both conditions
+    valid_drive_ids <- intersect(first_points_within_start_buffer, last_points_within_end_buffer)
+    data_start_end <- data %>%
+      filter(drive_id %in% valid_drive_ids)
+    print(valid_drive_ids)
+    
+    # Extract starting points for visualization
+    starting_points <- data_start_end %>%
+      group_by(drive_id) %>%
+      slice(1) %>%
+      ungroup()
+    # Extract ending points for visualization
+    ending_points <- data_start_end %>%
+      group_by(drive_id) %>%
+      slice(n()) %>%
+      ungroup()
+    # Visualize the starting/ending points and the start7end buffer as a ring
+    plot <- ggplot() +
+      geom_sf(data = data_start_end, aes(geometry = geom, colour = drive_id), alpha = 0.5, size = 0.1) +
+      geom_sf(data = starting_points, aes(geometry = geom), color = "red", size = 1) +
+      geom_sf(data = ending_points, aes(geometry = geom), color = "green", size = 1) +
+      geom_sf(data = start_buffer, fill = NA, color = "red", size = 1, linetype = "dashed") +
+      geom_sf(data = end_buffer, fill = NA, color = "green", size = 1, linetype = "dashed") +
+      coord_sf() +
+      theme_minimal() +
+      labs(title = "Starting and Ending Points and Start/End Buffer Ring",
+           subtitle = "Red points are the starting points, red dashed line is the start buffer ring, the same in green for end. Each drive has own colour")
+    print(plot)
+    return(data_start_end)
+    
+}
+data_from_home <- filter_drives(home_point, 500, hadiko_point, 500, data)
+data_from_hadiko <- filter_drives(hadiko_point, 500, home_point, 500, data)
 
-# Plot
-ggplot() +
-  geom_sf(data = start_buffer, color = "black", fill = "lightblue") +
-  geom_sf(data = start_point, color = "darkblue") +
-  geom_sf(data = points_start_buffer, color = "darkgrey") +
-  geom_sf(data = route_start_points, color = "red")
 ```
 
 ```{r}
-## End point
-# Buffer
-end_buffer <- st_buffer(end_point, dist = 100)
-
-# Point in buffer
-points_end_buffer <- st_intersection(bike_data, end_buffer)
-
-# Calculate the distance of each point from the start point
-points_end_buffer <- points_end_buffer %>%
-  mutate(distance = st_distance(., end_point))
-
-# # Find the closest point per day
-# route_end_points <- points_end_buffer %>%
-#   group_by(date) %>%
-#   slice(which.min(distance)) %>%
-#   ungroup()
-# ###
-
-# Find the closest point per drive_id
-route_end_points <- points_end_buffer %>%
-  group_by(drive_id) %>%
-  slice(which.min(distance)) %>%
-  ungroup()
-###
-
-# Plot
-ggplot() +
-  geom_sf(data = end_buffer, color = "black", fill = "lightblue") +
-  geom_sf(data = end_point, color = "darkblue") +
-  geom_sf(data = points_end_buffer, color = "darkgrey") +
-  geom_sf(data = route_end_points, color = "red")
-```
-
-Group by time
-
-```{r}
-
 
 ```
+
+
 
 ```{r}
 # Casting points to lines
@@ -206,24 +211,8 @@ data_line <- data_points %>%
   st_cast("LINESTRING")
 ```
 
-Separating the routes
-
 ```{r}
-# Calculate time differences between consecutive points in seconds
-bike_data <- data %>%
-  arrange(timestamp) %>%  # Ensure data is sorted by time
-  mutate(time_diff = c(NA, diff(timestamp)))
 
-# Identify where the time difference exceeds 300 seconds (5 minutes)
-bike_data <- bike_data %>%
-  mutate(new_drive = ifelse(is.na(time_diff) | time_diff > 300, 1, 0))
-
-# Assign drive IDs
-bike_data <- bike_data %>%
-  mutate(drive_id = cumsum(new_drive))
-
-# View the resulting data
-print(bike_data)
 ```
 
 ```{r}
